@@ -10,10 +10,22 @@ except ImportError:
     from urllib.parse import quote
 import re
 from unidecode import unidecode
+
+import requests
+
 bare_url = "http://export.arxiv.org/api/query"
 
 months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct',
           'nov', 'dec']
+
+def run_query(query):
+  request = requests.post('http://localhost:5000/graphql?', json=query)
+  if request.status_code == 200:
+    return request.json()
+  else:
+    return None
+  #else:
+  #  raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
 
 
 def ask_which_is(title, items):
@@ -31,15 +43,45 @@ def ask_which_is(title, items):
             break
     return found, result
 
-
+#value -> arxiv
 def get_arxiv_info(value, field="id"):
+    query = """"""
+    
+    #ver se da pra modularizar
+    if field == "id":
+        query = """
+            query arxiv($identifier:ID!){
+            entry(id:$identifier){
+                doi
+                pdfUrl
+                title
+            }
+            }
+        """
+    else:
+        query = """
+            query arxiv($identifier:String!){
+            entries(searchQuery:$identifier, start:0, maxResults:1, sortBy: "relevance", sortOrder: "descending"){
+                doi
+                pdfUrl
+                title
+            }
+            }
+        """
+    json = {
+        "query":query, "variables":{
+            "identifier":value
+        }
+    }
+
+    result = run_query(json)
+
     found = False
     items = []
-    params = "?search_query="+field+":"+quote(unidecode(value))
-    url = bare_url+params
-    result = feedparser.parse(url)
-    items = result.entries
-    found = len(items) > 0
+    if result != None:
+        found = True
+        items = result["data"]["entries"]
+
     return found, items
 
 
@@ -97,7 +139,7 @@ def get_arxiv_pdf_link(value, field="id"):
 
     return found, link
 
-
+#get_fist -> ask value -> arxiv field-> id /ti (id/title)
 def check_arxiv_published(value, field="id", get_first=True):
     found = False
     published = False
@@ -110,8 +152,8 @@ def check_arxiv_published(value, field="id", get_first=True):
         else:
             item = items[0]
     if found:
-        if "arxiv_doi" in item:
-            doi = item["arxiv_doi"]
+        if "doi" in item:
+            doi = item["doi"]
             published, bib = get_bib_from_doi(doi)
         else:
             bib = generate_bib_from_arxiv(item, value, field)
