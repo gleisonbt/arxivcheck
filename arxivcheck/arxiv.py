@@ -13,11 +13,6 @@ from unidecode import unidecode
 
 import requests
 
-bare_url = "http://export.arxiv.org/api/query"
-
-months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct',
-          'nov', 'dec']
-
 def run_query(query):
   request = requests.post('http://localhost:5000/graphql?', json=query)
   if request.status_code == 200:
@@ -43,31 +38,28 @@ def ask_which_is(title, items):
             break
     return found, result
 
-#value -> arxiv
+
 def get_arxiv_info(value, field="id"):
-    query = """"""
     
-    #ver se da pra modularizar
     if field == "id":
-        query = """
+        prefix_query = """
             query arxiv($identifier:ID!){
             entry(id:$identifier){
-                doi
-                pdfUrl
-                title
-            }
-            }
         """
     else:
-        query = """
+        prefix_query = """
             query arxiv($identifier:String!){
             entries(searchQuery:$identifier, start:0, maxResults:1, sortBy: "relevance", sortOrder: "descending"){
-                doi
-                pdfUrl
-                title
-            }
-            }
         """
+
+    query = prefix_query + """
+            doi
+            pdfUrl
+            title
+        }
+        }
+    """
+
     json = {
         "query":query, "variables":{
             "identifier":value
@@ -78,9 +70,16 @@ def get_arxiv_info(value, field="id"):
 
     found = False
     items = []
-    if result != None:
+
+    if field == "id" and result["data"]["entry"] != None:
+        items = result["data"]["entry"]
         found = True
+    elif field == "ti" and result["data"]["entries"]:
         items = result["data"]["entries"]
+        found = True
+    else:
+        items = []  
+
 
     return found, items
 
@@ -123,23 +122,13 @@ def generate_bib_from_arxiv(arxiv_item, value, field="id"):
 
 
 def get_arxiv_pdf_link(value, field="id"):
-    link = None
-    value = re.sub("arxiv\:", "", value, flags=re.I)
     found, items = get_arxiv_info(value, field)
     if found:
-        arxiv_item = items[0]
-        pdf_item = list(
-            filter(
-                lambda i: i["type"] == "application/pdf",
-                arxiv_item.links
-            )
-        )
-        found = len(pdf_item) > 0
-        link = pdf_item[0]["href"] if found else None
+        link = items[0]["pdfUrl"]
 
     return found, link
 
-#get_fist -> ask value -> arxiv field-> id /ti (id/title)
+
 def check_arxiv_published(value, field="id", get_first=True):
     found = False
     published = False
