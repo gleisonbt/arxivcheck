@@ -13,6 +13,9 @@ from unidecode import unidecode
 
 import requests
 
+months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct',
+'nov', 'dec']
+
 def run_query(query):
   request = requests.post('http://localhost:5000/graphql?', json=query)
   if request.status_code == 200:
@@ -49,13 +52,16 @@ def get_arxiv_info(value, field="id"):
     else:
         prefix_query = """
             query arxiv($identifier:String!){
-            entries(searchQuery:$identifier, start:0, maxResults:1, sortBy: "relevance", sortOrder: "descending"){
+            entries(searchQuery:$identifier, start:0, maxResults:100, sortBy: "relevance", sortOrder: "descending"){
         """
 
     query = prefix_query + """
             doi
             pdfUrl
             title
+            authors
+            published
+            id
         }
         }
     """
@@ -91,17 +97,17 @@ def generate_bib_from_arxiv(arxiv_item, value, field="id"):
     else:
         journal = "arxiv:"+value
 
-    url = arxiv_item.link
-    title = arxiv_item.title
-    authors = arxiv_item.authors
+    url = arxiv_item["pdfUrl"]
+    title = arxiv_item["title"]
+    authors = arxiv_item["authors"]
     if len(authors) > 0:
-        first_author = authors[0]["name"].split(" ")
-        authors = " and ".join([author["name"] for author in authors])
+        first_author = authors[0].split(" ")
+        authors = " and ".join([author for author in authors])
     else:
         first_author = authors
         authors = authors
 
-    published = arxiv_item.published.split("-")
+    published = arxiv_item["published"].split("-")
     year = ''
     if len(published) > 1:
         year = published[0]
@@ -141,7 +147,7 @@ def check_arxiv_published(value, field="id", get_first=True):
         else:
             item = items[0]
     if found:
-        if "doi" in item:
+        if item["doi"] != None:
             doi = item["doi"]
             published, bib = get_bib_from_doi(doi)
         else:
