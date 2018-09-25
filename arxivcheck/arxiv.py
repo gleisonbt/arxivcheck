@@ -12,18 +12,10 @@ import re
 from unidecode import unidecode
 
 import requests
+from arxivcheck.wrapper_graphQL import *
 
 months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct',
 'nov', 'dec']
-
-def run_query(query):
-  request = requests.post('http://localhost:5000/graphql?', json=query)
-  if request.status_code == 200:
-    return request.json()
-  else:
-    return None
-  #else:
-  #  raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
 
 
 def ask_which_is(title, items):
@@ -43,36 +35,8 @@ def ask_which_is(title, items):
 
 
 def get_arxiv_info(value, field="id"):
-    
-    if field == "id":
-        prefix_query = """
-            query arxiv($identifier:ID!){
-            entry(id:$identifier){
-        """
-    else:
-        prefix_query = """
-            query arxiv($identifier:String!){
-            entries(searchQuery:$identifier, start:0, maxResults:100, sortBy: "relevance", sortOrder: "descending"){
-        """
-
-    query = prefix_query + """
-            doi
-            pdfUrl
-            title
-            authors
-            published
-            id
-        }
-        }
-    """
-
-    json = {
-        "query":query, "variables":{
-            "identifier":value
-        }
-    }
-
-    result = run_query(json)
+   
+    result = arxiv_info(value, field)
 
     found = False
     items = []
